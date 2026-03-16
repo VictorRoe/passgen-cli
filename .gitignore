@@ -1,0 +1,10 @@
+# Claude folder
+.claude
+
+# Binaries
+*.exe
+*.bin
+*.out
+
+# Docs
+/docs
