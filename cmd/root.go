@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/atotto/clipboard"
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -39,6 +40,7 @@ func init() {
 	rootCmd.Flags().BoolVarP(&flagSymbols, "symbols", "S", false, "Incluir símbolos (@#$%&*()!)")
 	rootCmd.Flags().BoolVarP(&flagNumbers, "numbers", "N", false, "Incluir números (0-9)")
 	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(deleteCmd)
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
@@ -127,6 +129,7 @@ func runGenerate(cmd *cobra.Command, args []string) error {
 	}
 
 	entries = append(entries, storage.Entry{
+		ID:        uuid.NewString(),
 		Email:     email,
 		Service:   service,
 		Password:  password,

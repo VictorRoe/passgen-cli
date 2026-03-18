@@ -67,6 +67,7 @@ func TestWriteRaw_Atomic(t *testing.T) {
 func TestMarshalUnmarshalEntries_RoundTrip(t *testing.T) {
 	entries := []storage.Entry{
 		{
+			ID:        "550e8400-e29b-41d4-a716-446655440000",
 			Email:     "user@example.com",
 			Service:   "github",
 			Password:  "abc123XYZ!",
@@ -86,6 +87,9 @@ func TestMarshalUnmarshalEntries_RoundTrip(t *testing.T) {
 	if len(got) != 1 {
 		t.Fatalf("UnmarshalEntries() len = %d, want 1", len(got))
 	}
+	if got[0].ID != entries[0].ID {
+		t.Errorf("ID: got %q want %q", got[0].ID, entries[0].ID)
+	}
 	if got[0].Email != entries[0].Email {
 		t.Errorf("Email: got %q want %q", got[0].Email, entries[0].Email)
 	}
@@ -97,6 +101,21 @@ func TestMarshalUnmarshalEntries_RoundTrip(t *testing.T) {
 	}
 	if !got[0].CreatedAt.Equal(entries[0].CreatedAt) {
 		t.Errorf("CreatedAt: got %v want %v", got[0].CreatedAt, entries[0].CreatedAt)
+	}
+}
+
+func TestUnmarshalEntries_LegacyNoID(t *testing.T) {
+	// JSON without "id" field — simulates a vault written before UUID refactor
+	raw := `[{"email":"a@b.com","service":"svc","password":"pw","created_at":"2026-01-01T00:00:00Z"}]`
+	entries, err := storage.UnmarshalEntries([]byte(raw))
+	if err != nil {
+		t.Fatalf("UnmarshalEntries() error = %v", err)
+	}
+	if len(entries) != 1 {
+		t.Fatalf("expected 1 entry, got %d", len(entries))
+	}
+	if entries[0].ID != "" {
+		t.Errorf("expected empty ID for legacy entry, got %q", entries[0].ID)
 	}
 }
 

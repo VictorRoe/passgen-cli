@@ -69,15 +69,35 @@ func runList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	entries, changed := ensureIDs(entries)
+	if changed {
+		jsonData, err := storage.MarshalEntries(entries)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			for i := range jsonData {
+				jsonData[i] = 0
+			}
+		}()
+		newNonce, newCiphertext, err := appcrypto.Encrypt(key, jsonData)
+		if err != nil {
+			return err
+		}
+		if err := storage.WriteRaw(vaultPath, salt, newNonce, newCiphertext); err != nil {
+			return err
+		}
+	}
+
 	sort.Slice(entries, func(i, j int) bool {
 		return entries[i].CreatedAt.Before(entries[j].CreatedAt)
 	})
 
-	fmt.Printf("%-32s %-20s %-32s %-16s\n", "EMAIL", "SERVICIO", "PASSWORD", "CREADO")
-	fmt.Println(strings.Repeat("-", 104))
+	fmt.Printf("%-8s  %-32s %-20s %-32s %-16s\n", "ID", "EMAIL", "SERVICIO", "PASSWORD", "CREADO")
+	fmt.Println(strings.Repeat("-", 113))
 	for _, e := range entries {
-		fmt.Printf("%-32s %-20s %-32s %-16s\n",
-			e.Email, e.Service, e.Password,
+		fmt.Printf("%-8s  %-32s %-20s %-32s %-16s\n",
+			e.ID[:8], e.Email, e.Service, e.Password,
 			e.CreatedAt.Format("2006-01-02 15:04"),
 		)
 	}

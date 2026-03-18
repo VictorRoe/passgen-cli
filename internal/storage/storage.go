@@ -14,6 +14,7 @@ const (
 )
 
 type Entry struct {
+	ID        string    `json:"id"`
 	Email     string    `json:"email"`
 	Service   string    `json:"service"`
 	Password  string    `json:"password"`
