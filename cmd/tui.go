@@ -128,7 +128,7 @@ func runSelect(title string, entries []storage.Entry) (int, error) {
 // would otherwise open the console directly and still read keys from it.
 func requireTerminal(f *os.File) error {
 	if !term.IsTerminal(int(f.Fd())) {
-		return fmt.Errorf("delete requiere una terminal interactiva")
+		return fmt.Errorf("este comando requiere una terminal interactiva")
 	}
 	return nil
 }
@@ -145,10 +145,12 @@ func tick() tea.Cmd {
 type countdownModel struct {
 	service   string
 	remaining int
+	shownAt   time.Time
+	now       func() time.Time
 }
 
 func newCountdownModel(service string, seconds int) countdownModel {
-	return countdownModel{service: service, remaining: seconds}
+	return countdownModel{service: service, remaining: seconds, shownAt: time.Now(), now: time.Now}
 }
 
 func (m countdownModel) Init() tea.Cmd { return tick() }
@@ -163,7 +165,14 @@ func (m countdownModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, tick()
 	case tea.KeyMsg:
 		switch msg.Type {
-		case tea.KeyEnter, tea.KeyEsc, tea.KeyCtrlC:
+		case tea.KeyEnter:
+			// A buffered Enter (double press in the selector) must not wipe
+			// the clipboard before the user can paste.
+			if m.now().Sub(m.shownAt) < confirmGuard {
+				return m, nil
+			}
+			return m, tea.Quit
+		case tea.KeyEsc, tea.KeyCtrlC:
 			return m, tea.Quit
 		}
 	}

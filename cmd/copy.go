@@ -56,7 +56,7 @@ func runCopy(cmd *cobra.Command, args []string) error {
 	// Clear the clipboard even if the countdown fails to start.
 	countdownErr := runCountdown(entry.Service, clipboardTTL)
 
-	cleared, err := clearIfUnchanged(clipboard.ReadAll, clipboard.WriteAll, entry.Password)
+	cleared, err := clearIfUnchanged(readClipboard, clipboard.WriteAll, entry.Password)
 	switch {
 	case err != nil:
 		fmt.Fprintf(os.Stderr, "⚠️  No se pudo borrar el portapapeles: %v\n", err)

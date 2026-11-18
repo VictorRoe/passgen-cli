@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"errors"
+	"syscall"
 	"testing"
 )
 
@@ -35,5 +36,21 @@ func TestClearIfUnchanged_ReadError(t *testing.T) {
 	cleared, err := clearIfUnchanged(c.read, c.write, "secret")
 	if err == nil || cleared || c.writes != 0 {
 		t.Errorf("cleared=%v err=%v writes=%d, want false error 0", cleared, err, c.writes)
+	}
+}
+
+func TestNormalizeRead_EmptyClipboardIsNotAnError(t *testing.T) {
+	// On Windows atotto returns Errno(0) ("operation completed successfully")
+	// when the clipboard holds no text.
+	s, err := normalizeRead("", syscall.Errno(0))
+	if err != nil || s != "" {
+		t.Errorf("normalizeRead = (%q, %v), want (\"\", nil)", s, err)
+	}
+}
+
+func TestNormalizeRead_RealErrorKept(t *testing.T) {
+	boom := errors.New("boom")
+	if _, err := normalizeRead("", boom); !errors.Is(err, boom) {
+		t.Errorf("normalizeRead must keep real errors, got %v", err)
 	}
 }

@@ -206,7 +206,9 @@ func TestCountdown_QuitsAtZero(t *testing.T) {
 
 func TestCountdown_KeysQuit(t *testing.T) {
 	for _, k := range []tea.KeyType{tea.KeyEnter, tea.KeyEsc, tea.KeyCtrlC} {
-		_, cmd := newCountdownModel("github", 30).Update(key(k))
+		m := newCountdownModel("github", 30)
+		m.shownAt = time.Now().Add(-confirmGuard)
+		_, cmd := m.Update(key(k))
 		if cmd == nil || cmd() != tea.Quit() {
 			t.Errorf("key %v must quit", k)
 		}
@@ -223,5 +225,28 @@ func TestCountdown_ViewShowsServiceAndSeconds(t *testing.T) {
 		if !strings.Contains(v, want) {
 			t.Errorf("View() = %q, missing %q", v, want)
 		}
+	}
+}
+
+func TestCountdown_EnterIgnoredRightAfterShown(t *testing.T) {
+	start := time.Now()
+	m := newCountdownModel("github", 30)
+	m.shownAt = start
+	m.now = func() time.Time { return start.Add(confirmGuard / 2) }
+	if _, cmd := m.Update(key(tea.KeyEnter)); cmd != nil {
+		t.Error("buffered Enter right after copying must not end the countdown")
+	}
+	if _, cmd := m.Update(key(tea.KeyEsc)); cmd == nil {
+		t.Error("Esc must end the countdown immediately")
+	}
+}
+
+func TestRequireTerminal_GenericMessage(t *testing.T) {
+	r, w, _ := os.Pipe()
+	defer r.Close()
+	defer w.Close()
+	err := requireTerminal(r)
+	if err == nil || strings.Contains(err.Error(), "delete") {
+		t.Errorf("requireTerminal error = %v, want a message not tied to delete", err)
 	}
 }

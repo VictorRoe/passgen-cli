@@ -204,6 +204,8 @@ La contraseña se copia al portapapeles (nunca se muestra en pantalla) y empieza
 - Si mientras tanto copiaste otra cosa, no se toca: solo se borra si aún contiene esa contraseña.
 - En la lista, `Esc` o `Ctrl+C` salen sin copiar nada.
 
+> ⚠️ Si tienes activado el **historial del portapapeles de Windows** (`Win+V`) o la sincronización entre dispositivos, la contraseña puede quedar guardada en ese historial aunque `passgen` borre el portapapeles. Bórrala desde `Win+V` o desactiva el historial en *Configuración → Sistema → Portapapeles*.
+
 ---
 
 ## Seguridad
