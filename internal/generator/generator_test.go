@@ -91,3 +91,25 @@ func TestGenerate_WithSymbols(t *testing.T) {
 		t.Error("Generate() with Symbols=true: no symbol found in 200-char password")
 	}
 }
+
+func TestGenerate_AlwaysIncludesRequestedClasses(t *testing.T) {
+	opts := generator.Options{Length: 8, Symbols: true, Numbers: true}
+	for i := 0; i < 2000; i++ {
+		got, err := generator.Generate(opts)
+		if err != nil {
+			t.Fatalf("Generate() error = %v", err)
+		}
+		if len(got) != 8 {
+			t.Fatalf("Generate() len = %d, want 8", len(got))
+		}
+		if !strings.ContainsAny(got, "@#$%&*()!") {
+			t.Fatalf("Generate() with Symbols=true returned %q without symbols", got)
+		}
+		if !strings.ContainsAny(got, "0123456789") {
+			t.Fatalf("Generate() with Numbers=true returned %q without digits", got)
+		}
+		if !strings.ContainsAny(got, "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ") {
+			t.Fatalf("Generate() returned %q without letters", got)
+		}
+	}
+}
