@@ -15,6 +15,7 @@ CLI personal para generar y almacenar contraseñas seguras, cifradas localmente 
 - Copia automática de la contraseña al portapapeles
 - Subcomando `list` para ver todas tus entradas en tabla
 - Subcomando `delete` interactivo (o por ID) con confirmación de una tecla
+- Subcomando `copy` interactivo (o por ID) que borra el portapapeles a los 30 segundos
 - Sin dependencias externas en tiempo de ejecución — un solo binario
 
 ---
@@ -175,6 +176,33 @@ En ambos modos se pide confirmación:
 | `Esc` / `Ctrl+C` | Salir sin borrar | Cancelar sin borrar |
 
 Cualquier otra tecla en la confirmación se ignora.
+
+---
+
+### Copiar una contraseña
+
+**Modo interactivo** — elige la entrada de una lista:
+
+```bash
+passgen copy
+```
+
+**Por ID** — usa los primeros 8+ caracteres del ID que muestra `passgen list`:
+
+```bash
+passgen copy 3f9a1c2e
+```
+
+La contraseña se copia al portapapeles (nunca se muestra en pantalla) y empieza una cuenta atrás:
+
+```
+✅ Password de 'github' copiado. Se borrará en 30s · [Enter/Esc/Ctrl+C] borrar ahora
+🧹 Portapapeles borrado.
+```
+
+- A los 30 segundos, o al pulsar `Enter`, `Esc` o `Ctrl+C`, el portapapeles se borra.
+- Si mientras tanto copiaste otra cosa, no se toca: solo se borra si aún contiene esa contraseña.
+- En la lista, `Esc` o `Ctrl+C` salen sin copiar nada.
 
 ---
 
