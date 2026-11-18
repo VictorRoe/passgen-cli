@@ -2,7 +2,7 @@
 
 CLI personal para generar y almacenar contraseñas seguras, cifradas localmente con AES-256-GCM.
 
-![Go](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)
+![Go](https://img.shields.io/badge/Go-1.25+-00ADD8?style=flat&logo=go)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)
 
 ---
@@ -16,55 +16,61 @@ CLI personal para generar y almacenar contraseñas seguras, cifradas localmente 
 - Subcomando `list` para ver todas tus entradas en tabla
 - Subcomando `delete` interactivo (o por ID) con confirmación de una tecla
 - Subcomando `copy` interactivo (o por ID) que borra el portapapeles a los 30 segundos
-- Sin dependencias externas en tiempo de ejecución — un solo binario
+- Un solo binario, sin runtime (en Linux el portapapeles necesita `xclip`, `xsel` o `wl-clipboard`)
 
 ---
 
 ## Requisitos
 
-- [Go 1.21+](https://go.dev/dl/)
+- [Go 1.25+](https://go.dev/dl/) (lo exige `go.mod`)
 - Git (para clonar el repositorio)
+- Solo Linux: `xclip`, `xsel` o `wl-clipboard` para el portapapeles (p. ej. `sudo apt install xclip`)
 
 ---
 
 ## Instalación
 
-### 1. Clonar y compilar
+### 1. Clonar
 
 ```bash
 git clone https://github.com/VictorRoe/passgen-cli.git
 cd passgen-cli
 ```
 
-### 2. Instalar el binario según tu sistema operativo
+### 2. Compilar e instalar el binario
+
+El binario se instala en la carpeta `bin` de tu `GOPATH`. Usamos `go env GOPATH` en vez de `$GOPATH` porque esa variable normalmente no está definida (Go usa un valor por defecto, p. ej. `C:\Users\<tú>\go` o `~/go`).
 
 #### Windows (PowerShell o Git Bash)
 
 ```bash
-go build -o "$GOPATH/bin/passgen.exe" .
+go build -o "$(go env GOPATH)/bin/passgen.exe" .
 ```
 
 > `go install` crearía `passgen-cli.exe` (por el nombre del módulo). Con `-o` forzamos el nombre a `passgen`.
 
-Verificar que `%GOPATH%\bin` está en el PATH:
+Verificar que esa carpeta está en el PATH (PowerShell):
 
 ```powershell
-$env:Path -split ';' | Select-String "go\\bin"
+$bin = "$(go env GOPATH)\bin"
+$env:Path -split ';' | Where-Object { $_ -eq $bin }
 ```
 
-Si no aparece, agrégalo (una sola vez) y reabre PowerShell:
+Si no aparece nada, agrégala al PATH de tu usuario (una sola vez) y reabre la terminal:
 
 ```powershell
-[Environment]::SetEnvironmentVariable("Path", $env:Path + ";$env:USERPROFILE\go\bin", "User")
+$bin = "$(go env GOPATH)\bin"
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+[Environment]::SetEnvironmentVariable("Path", "$userPath;$bin", "User")
 ```
 
 #### macOS / Linux
 
 ```bash
-go build -o "$GOPATH/bin/passgen" .
+go build -o "$(go env GOPATH)/bin/passgen" .
 ```
 
-Verificar que `$GOPATH/bin` está en el PATH (agrega al `.bashrc` o `.zshrc` si no está):
+Verificar que esa carpeta está en el PATH (agrega la línea a tu `.bashrc` o `.zshrc` si no está):
 
 ```bash
 export PATH="$PATH:$(go env GOPATH)/bin"
@@ -135,10 +141,10 @@ passgen list
 
 ```
 Master Password:
-EMAIL                            SERVICIO             PASSWORD                         CREADO
---------------------------------------------------------------------------------------------------------
-victorroe@gmail.com              github               aB3$kP9!mXq2Lz@n                2026-03-16 14:32
-victorroe@gmail.com              netflix              mNp7Wd4Kqr1Ytz8V                2026-03-16 14:45
+ID        EMAIL                            SERVICIO             PASSWORD                         CREADO
+-----------------------------------------------------------------------------------------------------------------
+3f9a1c2e  user@gmail.com                   github               aB3$kP9!mXq2Lz@n                 2026-03-16 14:32
+8b7d4e10  user@gmail.com                   netflix              mNp7Wd4Kqr1Ytz8V                 2026-03-16 14:45
 ```
 
 ---
@@ -242,12 +248,18 @@ passgen <email> <servicio> [flags]
 
 ## Actualizar el binario
 
-Tras modificar el código, vuelve a compilar:
+Tras modificar el código (o hacer `git pull`), vuelve a compilar desde la raíz del repo:
 
 ```bash
-# Windows
-go build -o "$GOPATH/bin/passgen.exe" .
+# Windows (PowerShell o Git Bash)
+go build -o "$(go env GOPATH)/bin/passgen.exe" .
 
 # macOS / Linux
-go build -o "$GOPATH/bin/passgen" .
+go build -o "$(go env GOPATH)/bin/passgen" .
+```
+
+Para comprobar desde qué commit está compilado el binario:
+
+```bash
+go version -m "$(go env GOPATH)/bin/passgen.exe"   # busca vcs.revision
 ```
