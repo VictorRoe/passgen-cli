@@ -102,7 +102,7 @@ func removeAndSave(v *vault, idx int) error {
 }
 
 func deleteInteractive(v *vault) error {
-	idx, err := runSelect(v.entries)
+	idx, err := runSelect("Selecciona la entrada a eliminar", v.entries)
 	if err != nil {
 		return err
 	}
