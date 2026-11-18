@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
 	"os"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/VictorRoe/passgen-cli/internal/storage"
 	"github.com/google/uuid"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
@@ -72,6 +70,10 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		if errors.Is(err, os.ErrNotExist) {
 			return fmt.Errorf("vault no encontrado, genera tu primera contraseña primero")
 		}
+		return err
+	}
+
+	if err := requireTerminal(os.Stdin); err != nil {
 		return err
 	}
 
@@ -145,7 +147,7 @@ func deleteByPrefix(entries []storage.Entry, prefix string, key, salt []byte, va
 		return err
 	}
 
-	confirmed, err := confirmDeletion(entry)
+	confirmed, err := runConfirm(entry)
 	if err != nil {
 		return err
 	}
@@ -155,17 +157,6 @@ func deleteByPrefix(entries []storage.Entry, prefix string, key, salt []byte, va
 	}
 
 	return removeAndSave(entries, idx, key, salt, vaultPath)
-}
-
-func confirmDeletion(entry storage.Entry) (bool, error) {
-	fmt.Printf("¿Eliminar entrada '%s' (%s)? [s/N]: ", entry.Service, entry.Email)
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return false, fmt.Errorf("leer confirmación: %w", err)
-	}
-	input = strings.TrimRight(input, "\r\n")
-	return input == "s", nil
 }
 
 func removeAndSave(entries []storage.Entry, idx int, key, salt []byte, vaultPath string) error {
@@ -194,25 +185,16 @@ func removeAndSave(entries []storage.Entry, idx int, key, salt []byte, vaultPath
 }
 
 func deleteInteractive(entries []storage.Entry, key, salt []byte, vaultPath string) error {
-	items := make([]string, len(entries))
-	for i, e := range entries {
-		items[i] = fmt.Sprintf("%-8s  %-20s  (%s)", e.ID[:8], e.Service, e.Email)
-	}
-
-	prompt := promptui.Select{
-		Label: "Selecciona la entrada a eliminar",
-		Items: items,
-	}
-
-	idx, _, err := prompt.Run()
+	idx, err := runSelect(entries)
 	if err != nil {
-		if errors.Is(err, promptui.ErrInterrupt) {
-			return nil // Ctrl+C or Escape — exit cleanly
-		}
-		return fmt.Errorf("selector: %w", err)
+		return err
+	}
+	if idx < 0 {
+		fmt.Println("Operación cancelada.")
+		return nil
 	}
 
-	confirmed, err := confirmDeletion(entries[idx])
+	confirmed, err := runConfirm(entries[idx])
 	if err != nil {
 		return err
 	}

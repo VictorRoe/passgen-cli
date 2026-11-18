@@ -14,6 +14,7 @@ CLI personal para generar y almacenar contraseñas seguras, cifradas localmente 
 - Vault cifrado en `~/.passgen/vault.enc` — solo tú puedes leerlo
 - Copia automática de la contraseña al portapapeles
 - Subcomando `list` para ver todas tus entradas en tabla
+- Subcomando `delete` interactivo (o por ID) con confirmación de una tecla
 - Sin dependencias externas en tiempo de ejecución — un solo binario
 
 ---
@@ -138,6 +139,42 @@ EMAIL                            SERVICIO             PASSWORD                  
 victorroe@gmail.com              github               aB3$kP9!mXq2Lz@n                2026-03-16 14:32
 victorroe@gmail.com              netflix              mNp7Wd4Kqr1Ytz8V                2026-03-16 14:45
 ```
+
+---
+
+### Eliminar una contraseña
+
+**Modo interactivo** — elige la entrada de una lista:
+
+```bash
+passgen delete
+```
+
+```
+Selecciona la entrada a eliminar (↑/↓, Enter, Esc/Ctrl+C para salir):
+> 3f9a1c2e  github                (user@gmail.com)
+  8b7d4e10  netflix               (user@gmail.com)
+```
+
+**Por ID** — usa los primeros 8+ caracteres del ID que muestra `passgen list`:
+
+```bash
+passgen delete 3f9a1c2e
+```
+
+En ambos modos se pide confirmación:
+
+```
+¿Eliminar 'github' (user@gmail.com)? [Enter] confirmar · [Esc/Ctrl+C] cancelar
+```
+
+| Tecla | Lista | Confirmación |
+|-------|-------|--------------|
+| `↑`/`↓` o `k`/`j` | Mover la selección | — |
+| `Enter` | Elegir entrada | Eliminar |
+| `Esc` / `Ctrl+C` | Salir sin borrar | Cancelar sin borrar |
+
+Cualquier otra tecla en la confirmación se ignora.
 
 ---
 
