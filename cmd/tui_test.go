@@ -12,7 +12,7 @@ import (
 var testEntry = storage.Entry{ID: "abcdefgh-0000-0000-0000-000000000001", Service: "github", Email: "a@b.com"}
 
 func key(t tea.KeyType) tea.KeyMsg { return tea.KeyMsg{Type: t} }
-func runeKey(r rune) tea.KeyMsg   { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}} }
+func runeKey(r rune) tea.KeyMsg    { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}} }
 
 func TestConfirm_EnterConfirms(t *testing.T) {
 	m, cmd := newConfirmModel(testEntry).Update(key(tea.KeyEnter))
