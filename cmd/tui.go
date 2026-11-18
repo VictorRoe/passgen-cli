@@ -2,22 +2,32 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"golang.org/x/term"
 
 	"github.com/VictorRoe/passgen-cli/internal/storage"
 )
+
+// confirmGuard is how long Enter is ignored after the confirmation appears,
+// so a buffered keypress (double Enter at the password or in the selector)
+// cannot delete an entry without a deliberate press.
+const confirmGuard = 300 * time.Millisecond
 
 // confirmModel asks for a single-key confirmation: Enter confirms,
 // Esc or Ctrl+C cancels, every other key is ignored.
 type confirmModel struct {
 	entry     storage.Entry
 	confirmed bool
+	shownAt   time.Time
+	now       func() time.Time
 }
 
 func newConfirmModel(e storage.Entry) confirmModel {
-	return confirmModel{entry: e}
+	return confirmModel{entry: e, shownAt: time.Now(), now: time.Now}
 }
 
 func (m confirmModel) Init() tea.Cmd { return nil }
@@ -29,6 +39,9 @@ func (m confirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 	switch k.Type {
 	case tea.KeyEnter:
+		if m.now().Sub(m.shownAt) < confirmGuard {
+			return m, nil
+		}
 		m.confirmed = true
 		return m, tea.Quit
 	case tea.KeyEsc, tea.KeyCtrlC:
@@ -108,4 +121,13 @@ func runSelect(entries []storage.Entry) (int, error) {
 		return -1, fmt.Errorf("selector: %w", err)
 	}
 	return final.(selectModel).chosen, nil
+}
+
+// requireTerminal fails when f is not an interactive terminal. Bubble Tea
+// would otherwise open the console directly and still read keys from it.
+func requireTerminal(f *os.File) error {
+	if !term.IsTerminal(int(f.Fd())) {
+		return fmt.Errorf("delete requiere una terminal interactiva")
+	}
+	return nil
 }

@@ -73,6 +73,10 @@ func runDelete(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if err := requireTerminal(os.Stdin); err != nil {
+		return err
+	}
+
 	fmt.Print("Master Password: ")
 	masterBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Println()

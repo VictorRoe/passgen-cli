@@ -1,8 +1,10 @@
 package cmd
 
 import (
+	"os"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -15,7 +17,9 @@ func key(t tea.KeyType) tea.KeyMsg { return tea.KeyMsg{Type: t} }
 func runeKey(r rune) tea.KeyMsg    { return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}} }
 
 func TestConfirm_EnterConfirms(t *testing.T) {
-	m, cmd := newConfirmModel(testEntry).Update(key(tea.KeyEnter))
+	c := newConfirmModel(testEntry)
+	c.shownAt = time.Now().Add(-confirmGuard)
+	m, cmd := c.Update(key(tea.KeyEnter))
 	if !m.(confirmModel).confirmed {
 		t.Error("Enter must confirm")
 	}
@@ -131,5 +135,44 @@ func TestSelect_ViewMarksCursor(t *testing.T) {
 		if !strings.Contains(active[0], want) {
 			t.Errorf("active line %q missing %q", active[0], want)
 		}
+	}
+}
+
+func TestConfirm_EnterIgnoredRightAfterShown(t *testing.T) {
+	start := time.Now()
+	m := newConfirmModel(testEntry)
+	m.shownAt = start
+	m.now = func() time.Time { return start.Add(confirmGuard / 2) }
+	got, cmd := m.Update(key(tea.KeyEnter))
+	if got.(confirmModel).confirmed || cmd != nil {
+		t.Error("buffered Enter right after the prompt appears must be ignored")
+	}
+	m.now = func() time.Time { return start.Add(confirmGuard) }
+	got, cmd = m.Update(key(tea.KeyEnter))
+	if !got.(confirmModel).confirmed || cmd == nil {
+		t.Error("Enter after the guard window must confirm")
+	}
+}
+
+func TestConfirm_EscWorksDuringGuard(t *testing.T) {
+	start := time.Now()
+	m := newConfirmModel(testEntry)
+	m.shownAt = start
+	m.now = func() time.Time { return start }
+	got, cmd := m.Update(key(tea.KeyEsc))
+	if got.(confirmModel).confirmed || cmd == nil {
+		t.Error("Esc must cancel even during the guard window")
+	}
+}
+
+func TestRequireTerminal_RejectsPipe(t *testing.T) {
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer r.Close()
+	defer w.Close()
+	if err := requireTerminal(r); err == nil {
+		t.Error("requireTerminal must reject a non-terminal stdin")
 	}
 }
