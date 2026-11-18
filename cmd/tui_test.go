@@ -75,29 +75,29 @@ func sendAll(m tea.Model, msgs ...tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func TestSelect_Navigation(t *testing.T) {
-	m, _ := sendAll(newSelectModel(threeEntries()), key(tea.KeyDown), key(tea.KeyDown), key(tea.KeyUp))
+	m, _ := sendAll(newSelectModel("Título", threeEntries()), key(tea.KeyDown), key(tea.KeyDown), key(tea.KeyUp))
 	if got := m.(selectModel).cursor; got != 1 {
 		t.Errorf("arrows: cursor = %d, want 1", got)
 	}
-	m, _ = sendAll(newSelectModel(threeEntries()), runeKey('j'), runeKey('j'), runeKey('k'))
+	m, _ = sendAll(newSelectModel("Título", threeEntries()), runeKey('j'), runeKey('j'), runeKey('k'))
 	if got := m.(selectModel).cursor; got != 1 {
 		t.Errorf("j/k: cursor = %d, want 1", got)
 	}
 }
 
 func TestSelect_Bounds(t *testing.T) {
-	m, _ := sendAll(newSelectModel(threeEntries()), key(tea.KeyUp))
+	m, _ := sendAll(newSelectModel("Título", threeEntries()), key(tea.KeyUp))
 	if got := m.(selectModel).cursor; got != 0 {
 		t.Errorf("up at top: cursor = %d, want 0", got)
 	}
-	m, _ = sendAll(newSelectModel(threeEntries()), key(tea.KeyDown), key(tea.KeyDown), key(tea.KeyDown), key(tea.KeyDown))
+	m, _ = sendAll(newSelectModel("Título", threeEntries()), key(tea.KeyDown), key(tea.KeyDown), key(tea.KeyDown), key(tea.KeyDown))
 	if got := m.(selectModel).cursor; got != 2 {
 		t.Errorf("down at bottom: cursor = %d, want 2", got)
 	}
 }
 
 func TestSelect_EnterChooses(t *testing.T) {
-	m, cmd := sendAll(newSelectModel(threeEntries()), key(tea.KeyDown), key(tea.KeyEnter))
+	m, cmd := sendAll(newSelectModel("Título", threeEntries()), key(tea.KeyDown), key(tea.KeyEnter))
 	if got := m.(selectModel).chosen; got != 1 {
 		t.Errorf("chosen = %d, want 1", got)
 	}
@@ -107,21 +107,21 @@ func TestSelect_EnterChooses(t *testing.T) {
 }
 
 func TestSelect_EscCancels(t *testing.T) {
-	m, cmd := sendAll(newSelectModel(threeEntries()), key(tea.KeyDown), key(tea.KeyEsc))
+	m, cmd := sendAll(newSelectModel("Título", threeEntries()), key(tea.KeyDown), key(tea.KeyEsc))
 	if m.(selectModel).chosen != -1 || cmd == nil {
 		t.Error("Esc must cancel (chosen=-1) and quit")
 	}
 }
 
 func TestSelect_CtrlCCancels(t *testing.T) {
-	m, cmd := sendAll(newSelectModel(threeEntries()), key(tea.KeyCtrlC))
+	m, cmd := sendAll(newSelectModel("Título", threeEntries()), key(tea.KeyCtrlC))
 	if m.(selectModel).chosen != -1 || cmd == nil {
 		t.Error("Ctrl+C must cancel (chosen=-1) and quit")
 	}
 }
 
 func TestSelect_ViewMarksCursor(t *testing.T) {
-	m, _ := sendAll(newSelectModel(threeEntries()), key(tea.KeyDown))
+	m, _ := sendAll(newSelectModel("Título", threeEntries()), key(tea.KeyDown))
 	var active []string
 	for _, line := range strings.Split(m.View(), "\n") {
 		if strings.HasPrefix(line, "> ") {
@@ -174,5 +174,79 @@ func TestRequireTerminal_RejectsPipe(t *testing.T) {
 	defer w.Close()
 	if err := requireTerminal(r); err == nil {
 		t.Error("requireTerminal must reject a non-terminal stdin")
+	}
+}
+
+func TestSelect_ViewShowsTitle(t *testing.T) {
+	v := newSelectModel("Selecciona la entrada a copiar", threeEntries()).View()
+	if !strings.HasPrefix(v, "Selecciona la entrada a copiar") {
+		t.Errorf("View() = %q, want it to start with the title", v)
+	}
+}
+
+func TestCountdown_TickDecrements(t *testing.T) {
+	m, cmd := newCountdownModel("github", 30).Update(tickMsg{})
+	if got := m.(countdownModel).remaining; got != 29 {
+		t.Errorf("remaining = %d, want 29", got)
+	}
+	if cmd == nil {
+		t.Error("tick must schedule the next tick")
+	}
+}
+
+func TestCountdown_QuitsAtZero(t *testing.T) {
+	m, cmd := newCountdownModel("github", 1).Update(tickMsg{})
+	if got := m.(countdownModel).remaining; got != 0 {
+		t.Errorf("remaining = %d, want 0", got)
+	}
+	if cmd == nil || cmd() != tea.Quit() {
+		t.Error("reaching zero must quit")
+	}
+}
+
+func TestCountdown_KeysQuit(t *testing.T) {
+	for _, k := range []tea.KeyType{tea.KeyEnter, tea.KeyEsc, tea.KeyCtrlC} {
+		m := newCountdownModel("github", 30)
+		m.shownAt = time.Now().Add(-confirmGuard)
+		_, cmd := m.Update(key(k))
+		if cmd == nil || cmd() != tea.Quit() {
+			t.Errorf("key %v must quit", k)
+		}
+	}
+	_, cmd := newCountdownModel("github", 30).Update(runeKey('x'))
+	if cmd != nil {
+		t.Error("other keys must be ignored")
+	}
+}
+
+func TestCountdown_ViewShowsServiceAndSeconds(t *testing.T) {
+	v := newCountdownModel("github", 30).View()
+	for _, want := range []string{"github", "30s"} {
+		if !strings.Contains(v, want) {
+			t.Errorf("View() = %q, missing %q", v, want)
+		}
+	}
+}
+
+func TestCountdown_EnterIgnoredRightAfterShown(t *testing.T) {
+	start := time.Now()
+	m := newCountdownModel("github", 30)
+	m.shownAt = start
+	m.now = func() time.Time { return start.Add(confirmGuard / 2) }
+	if _, cmd := m.Update(key(tea.KeyEnter)); cmd != nil {
+		t.Error("buffered Enter right after copying must not end the countdown")
+	}
+	if _, cmd := m.Update(key(tea.KeyEsc)); cmd == nil {
+		t.Error("Esc must end the countdown immediately")
+	}
+}
+
+func TestRequireTerminal_GenericMessage(t *testing.T) {
+	r, w, _ := os.Pipe()
+	defer r.Close()
+	defer w.Close()
+	err := requireTerminal(r)
+	if err == nil || strings.Contains(err.Error(), "delete") {
+		t.Errorf("requireTerminal error = %v, want a message not tied to delete", err)
 	}
 }

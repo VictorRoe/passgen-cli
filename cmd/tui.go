@@ -67,13 +67,14 @@ func runConfirm(e storage.Entry) (bool, error) {
 // selectModel lets the user pick one entry with ↑/↓ (or k/j).
 // Enter chooses the highlighted entry; Esc or Ctrl+C cancels (chosen == -1).
 type selectModel struct {
+	title   string
 	entries []storage.Entry
 	cursor  int
 	chosen  int
 }
 
-func newSelectModel(entries []storage.Entry) selectModel {
-	return selectModel{entries: entries, chosen: -1}
+func newSelectModel(title string, entries []storage.Entry) selectModel {
+	return selectModel{title: title, entries: entries, chosen: -1}
 }
 
 func (m selectModel) Init() tea.Cmd { return nil }
@@ -103,7 +104,7 @@ func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m selectModel) View() string {
 	var b strings.Builder
-	b.WriteString("Selecciona la entrada a eliminar (↑/↓, Enter, Esc/Ctrl+C para salir):\n")
+	fmt.Fprintf(&b, "%s (↑/↓, Enter, Esc/Ctrl+C para salir):\n", m.title)
 	for i, e := range m.entries {
 		prefix := "  "
 		if i == m.cursor {
@@ -115,8 +116,8 @@ func (m selectModel) View() string {
 }
 
 // runSelect shows the selector and returns the chosen index, or -1 if cancelled.
-func runSelect(entries []storage.Entry) (int, error) {
-	final, err := tea.NewProgram(newSelectModel(entries)).Run()
+func runSelect(title string, entries []storage.Entry) (int, error) {
+	final, err := tea.NewProgram(newSelectModel(title, entries)).Run()
 	if err != nil {
 		return -1, fmt.Errorf("selector: %w", err)
 	}
@@ -127,7 +128,66 @@ func runSelect(entries []storage.Entry) (int, error) {
 // would otherwise open the console directly and still read keys from it.
 func requireTerminal(f *os.File) error {
 	if !term.IsTerminal(int(f.Fd())) {
-		return fmt.Errorf("delete requiere una terminal interactiva")
+		return fmt.Errorf("este comando requiere una terminal interactiva")
+	}
+	return nil
+}
+
+// tickMsg is sent once per second while the countdown runs.
+type tickMsg struct{}
+
+func tick() tea.Cmd {
+	return tea.Tick(time.Second, func(time.Time) tea.Msg { return tickMsg{} })
+}
+
+// countdownModel shows how long until the clipboard is cleared. It quits at
+// zero or when Enter, Esc or Ctrl+C is pressed. It never sees the password.
+type countdownModel struct {
+	service   string
+	remaining int
+	shownAt   time.Time
+	now       func() time.Time
+}
+
+func newCountdownModel(service string, seconds int) countdownModel {
+	return countdownModel{service: service, remaining: seconds, shownAt: time.Now(), now: time.Now}
+}
+
+func (m countdownModel) Init() tea.Cmd { return tick() }
+
+func (m countdownModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tickMsg:
+		m.remaining--
+		if m.remaining <= 0 {
+			return m, tea.Quit
+		}
+		return m, tick()
+	case tea.KeyMsg:
+		switch msg.Type {
+		case tea.KeyEnter:
+			// A buffered Enter (double press in the selector) must not wipe
+			// the clipboard before the user can paste.
+			if m.now().Sub(m.shownAt) < confirmGuard {
+				return m, nil
+			}
+			return m, tea.Quit
+		case tea.KeyEsc, tea.KeyCtrlC:
+			return m, tea.Quit
+		}
+	}
+	return m, nil
+}
+
+func (m countdownModel) View() string {
+	return fmt.Sprintf("✅ Password de '%s' copiado. Se borrará en %ds · [Enter/Esc/Ctrl+C] borrar ahora\n",
+		m.service, m.remaining)
+}
+
+// runCountdown blocks until the countdown ends or the user ends it early.
+func runCountdown(service string, seconds int) error {
+	if _, err := tea.NewProgram(newCountdownModel(service, seconds)).Run(); err != nil {
+		return fmt.Errorf("cuenta atrás: %w", err)
 	}
 	return nil
 }
