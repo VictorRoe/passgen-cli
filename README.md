@@ -16,6 +16,7 @@ CLI personal para generar y almacenar contraseñas seguras, cifradas localmente 
 - Subcomando `list` para ver todas tus entradas en tabla
 - Subcomando `delete` interactivo (o por ID) con confirmación de una tecla
 - Subcomando `copy` interactivo (o por ID) que borra el portapapeles a los 30 segundos
+- Sesión de 15 minutos: escribes la Master Password una vez y `passgen lock` la cierra antes
 - Un solo binario, sin runtime (en Linux el portapapeles necesita `xclip`, `xsel` o `wl-clipboard`)
 
 ---
@@ -213,6 +214,36 @@ La contraseña se copia al portapapeles (nunca se muestra en pantalla) y empieza
 > ⚠️ Si tienes activado el **historial del portapapeles de Windows** (`Win+V`) o la sincronización entre dispositivos, la contraseña puede quedar guardada en ese historial aunque `passgen` borre el portapapeles. Bórrala desde `Win+V` o desactiva el historial en *Configuración → Sistema → Portapapeles*.
 
 ---
+
+### Sesión de 15 minutos
+
+La primera vez que un comando pide la Master Password y la escribes bien, se abre una sesión:
+
+```
+Master Password:
+🔓 Sesión abierta durante 15 minutos.
+```
+
+Durante los **15 minutos siguientes** (fijos, no se renuevan con el uso) `passgen`, `list`, `delete` y `copy` no vuelven a pedirla. Pasado ese tiempo se pide de nuevo.
+
+Para cerrarla antes, por ejemplo si te alejas del equipo:
+
+```bash
+passgen lock
+```
+
+```
+🔒 Sesión cerrada.
+```
+
+**Cómo funciona:** un proceso en segundo plano (`passgen agent`, oculto) guarda **solo en memoria** la clave derivada de tu Master Password (nunca la Master Password ni nada en disco). Los comandos se la piden por un socket local en `~/.passgen/agent.sock`, que solo tu usuario puede abrir. A los 15 minutos, con `passgen lock`, al reiniciar o al cerrar sesión en el sistema, la clave desaparece.
+
+- Funciona en Windows 10 (1803) o posterior, macOS y Linux.
+- En Windows, la primera vez que se abre una sesión `~/.passgen` (incluido `vault.enc`) queda con permisos **solo para tu usuario**, sin heredar los de la carpeta de usuario. Si no se pueden fijar, no se abre sesión y se sigue pidiendo la Master Password.
+  - Consecuencia: los programas que se ejecutan como `SYSTEM` o como administrador (algunas herramientas de copia de seguridad) dejan de poder leer el vault. Si haces copias de `vault.enc`, comprueba que tu herramienta se ejecuta con tu usuario.
+- Si la sesión falla por cualquier motivo, `passgen` funciona igual: simplemente te pide la Master Password.
+- Mientras la sesión está abierta, la clave está en la memoria del proceso; el sistema podría escribirla en el archivo de paginación o de hibernación, igual que ocurre con cualquier programa mientras se ejecuta.
+- Igual que `ssh-agent`, no protege frente a un programa malicioso que se ejecute con tu propio usuario mientras la sesión está abierta.
 
 ## Seguridad
 
