@@ -1,19 +1,13 @@
 package cmd
 
 import (
-	"bufio"
-	"errors"
 	"fmt"
 	"os"
 	"strings"
 
 	"github.com/VictorRoe/passgen-cli/internal/storage"
 	"github.com/google/uuid"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
-	"golang.org/x/term"
-
-	appcrypto "github.com/VictorRoe/passgen-cli/internal/crypto"
 )
 
 // ensureIDs is a pure function that assigns a UUID v4 to any Entry whose ID
@@ -62,90 +56,31 @@ var deleteCmd = &cobra.Command{
 }
 
 func runDelete(cmd *cobra.Command, args []string) error {
-	vaultPath, err := storage.VaultPath()
+	if err := requireTerminal(os.Stdin); err != nil {
+		return err
+	}
+	v, err := openVault()
 	if err != nil {
 		return err
 	}
+	defer v.close()
 
-	salt, nonce, ciphertext, err := storage.ReadRaw(vaultPath)
-	if err != nil {
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("vault no encontrado, genera tu primera contraseña primero")
-		}
-		return err
-	}
-
-	fmt.Print("Master Password: ")
-	masterBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
-	fmt.Println()
-	if err != nil {
-		return fmt.Errorf("leer master password: %w", err)
-	}
-	defer func() {
-		for i := range masterBytes {
-			masterBytes[i] = 0
-		}
-	}()
-
-	key := appcrypto.DeriveKey(masterBytes, salt)
-	defer func() {
-		for i := range key {
-			key[i] = 0
-		}
-	}()
-
-	plaintext, err := appcrypto.Decrypt(key, nonce, ciphertext)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		for i := range plaintext {
-			plaintext[i] = 0
-		}
-	}()
-
-	entries, err := storage.UnmarshalEntries(plaintext)
-	if err != nil {
-		return err
-	}
-
-	entries, changed := ensureIDs(entries)
-	if changed {
-		jsonData, marshalErr := storage.MarshalEntries(entries)
-		if marshalErr != nil {
-			return marshalErr
-		}
-		defer func() {
-			for i := range jsonData {
-				jsonData[i] = 0
-			}
-		}()
-		newNonce, newCiphertext, encErr := appcrypto.Encrypt(key, jsonData)
-		if encErr != nil {
-			return encErr
-		}
-		if writeErr := storage.WriteRaw(vaultPath, salt, newNonce, newCiphertext); writeErr != nil {
-			return writeErr
-		}
-	}
-
-	if len(entries) == 0 {
+	if len(v.entries) == 0 {
 		return fmt.Errorf("no hay entradas almacenadas")
 	}
-
 	if len(args) == 1 {
-		return deleteByPrefix(entries, args[0], key, salt, vaultPath)
+		return deleteByPrefix(v, args[0])
 	}
-	return deleteInteractive(entries, key, salt, vaultPath)
+	return deleteInteractive(v)
 }
 
-func deleteByPrefix(entries []storage.Entry, prefix string, key, salt []byte, vaultPath string) error {
-	entry, idx, err := matchEntry(entries, prefix)
+func deleteByPrefix(v *vault, prefix string) error {
+	entry, idx, err := matchEntry(v.entries, prefix)
 	if err != nil {
 		return err
 	}
 
-	confirmed, err := confirmDeletion(entry)
+	confirmed, err := runConfirm(entry)
 	if err != nil {
 		return err
 	}
@@ -154,65 +89,29 @@ func deleteByPrefix(entries []storage.Entry, prefix string, key, salt []byte, va
 		return nil
 	}
 
-	return removeAndSave(entries, idx, key, salt, vaultPath)
+	return removeAndSave(v, idx)
 }
 
-func confirmDeletion(entry storage.Entry) (bool, error) {
-	fmt.Printf("¿Eliminar entrada '%s' (%s)? [s/N]: ", entry.Service, entry.Email)
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return false, fmt.Errorf("leer confirmación: %w", err)
-	}
-	input = strings.TrimRight(input, "\r\n")
-	return input == "s", nil
-}
-
-func removeAndSave(entries []storage.Entry, idx int, key, salt []byte, vaultPath string) error {
-	entries = append(entries[:idx], entries[idx+1:]...)
-
-	jsonData, err := storage.MarshalEntries(entries)
-	if err != nil {
+func removeAndSave(v *vault, idx int) error {
+	v.entries = append(v.entries[:idx], v.entries[idx+1:]...)
+	if err := v.save(); err != nil {
 		return err
 	}
-	defer func() {
-		for i := range jsonData {
-			jsonData[i] = 0
-		}
-	}()
-
-	newNonce, newCiphertext, err := appcrypto.Encrypt(key, jsonData)
-	if err != nil {
-		return err
-	}
-	if err := storage.WriteRaw(vaultPath, salt, newNonce, newCiphertext); err != nil {
-		return err
-	}
-
 	fmt.Println("Entrada eliminada.")
 	return nil
 }
 
-func deleteInteractive(entries []storage.Entry, key, salt []byte, vaultPath string) error {
-	items := make([]string, len(entries))
-	for i, e := range entries {
-		items[i] = fmt.Sprintf("%-8s  %-20s  (%s)", e.ID[:8], e.Service, e.Email)
-	}
-
-	prompt := promptui.Select{
-		Label: "Selecciona la entrada a eliminar",
-		Items: items,
-	}
-
-	idx, _, err := prompt.Run()
+func deleteInteractive(v *vault) error {
+	idx, err := runSelect("Selecciona la entrada a eliminar", v.entries)
 	if err != nil {
-		if errors.Is(err, promptui.ErrInterrupt) {
-			return nil // Ctrl+C or Escape — exit cleanly
-		}
-		return fmt.Errorf("selector: %w", err)
+		return err
+	}
+	if idx < 0 {
+		fmt.Println("Operación cancelada.")
+		return nil
 	}
 
-	confirmed, err := confirmDeletion(entries[idx])
+	confirmed, err := runConfirm(v.entries[idx])
 	if err != nil {
 		return err
 	}
@@ -221,5 +120,5 @@ func deleteInteractive(entries []storage.Entry, key, salt []byte, vaultPath stri
 		return nil
 	}
 
-	return removeAndSave(entries, idx, key, salt, vaultPath)
+	return removeAndSave(v, idx)
 }

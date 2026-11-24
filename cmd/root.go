@@ -41,6 +41,7 @@ func init() {
 	rootCmd.Flags().BoolVarP(&flagNumbers, "numbers", "N", false, "Incluir números (0-9)")
 	rootCmd.AddCommand(listCmd)
 	rootCmd.AddCommand(deleteCmd)
+	rootCmd.AddCommand(copyCmd)
 }
 
 func runGenerate(cmd *cobra.Command, args []string) error {
