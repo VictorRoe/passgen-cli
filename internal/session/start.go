@@ -67,8 +67,11 @@ func Start(key, salt []byte) error {
 		return fmt.Errorf("session: localizar ejecutable: %w", err)
 	}
 
-	cmd := exec.Command(exe, "agent")
-	detach(cmd)
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return fmt.Errorf("session: obtener directorio home: %w", err)
+	}
+	cmd := agentCommand(exe, home)
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("session: preparar agente: %w", err)
@@ -91,4 +94,14 @@ func Start(key, salt []byte) error {
 		time.Sleep(50 * time.Millisecond)
 	}
 	return errors.New("session: el agente no respondió")
+}
+
+// agentCommand builds the detached "passgen agent" process. It runs from the
+// home directory so it never keeps the caller's folder in use (on Windows a
+// folder in use cannot be deleted).
+func agentCommand(exe, home string) *exec.Cmd {
+	cmd := exec.Command(exe, "agent")
+	cmd.Dir = home
+	detach(cmd)
+	return cmd
 }

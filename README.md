@@ -239,7 +239,8 @@ passgen lock
 **Cómo funciona:** un proceso en segundo plano (`passgen agent`, oculto) guarda **solo en memoria** la clave derivada de tu Master Password (nunca la Master Password ni nada en disco). Los comandos se la piden por un socket local en `~/.passgen/agent.sock`, que solo tu usuario puede abrir. A los 15 minutos, con `passgen lock`, al reiniciar o al cerrar sesión en el sistema, la clave desaparece.
 
 - Funciona en Windows 10 (1803) o posterior, macOS y Linux.
-- En Windows, `~/.passgen` queda con permisos **solo para tu usuario** (sin heredar los de la carpeta de usuario). Si no se pueden fijar, no se abre sesión y se sigue pidiendo la Master Password.
+- En Windows, la primera vez que se abre una sesión `~/.passgen` (incluido `vault.enc`) queda con permisos **solo para tu usuario**, sin heredar los de la carpeta de usuario. Si no se pueden fijar, no se abre sesión y se sigue pidiendo la Master Password.
+  - Consecuencia: los programas que se ejecutan como `SYSTEM` o como administrador (algunas herramientas de copia de seguridad) dejan de poder leer el vault. Si haces copias de `vault.enc`, comprueba que tu herramienta se ejecuta con tu usuario.
 - Si la sesión falla por cualquier motivo, `passgen` funciona igual: simplemente te pide la Master Password.
 - Mientras la sesión está abierta, la clave está en la memoria del proceso; el sistema podría escribirla en el archivo de paginación o de hibernación, igual que ocurre con cualquier programa mientras se ejecuta.
 - Igual que `ssh-agent`, no protege frente a un programa malicioso que se ejecute con tu propio usuario mientras la sesión está abierta.

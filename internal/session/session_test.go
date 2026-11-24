@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -126,4 +127,35 @@ func TestLock_NoSession(t *testing.T) {
 	if ok || err != nil {
 		t.Errorf("Lock() = %v, %v, want false, nil", ok, err)
 	}
+}
+
+func TestExpiry_UsesWallClock(t *testing.T) {
+	// Go's monotonic clock stops while Linux/macOS sleep, so the expiry must
+	// carry no monotonic reading or a suspended machine would extend it.
+	exp := expiryFrom(time.Now(), time.Hour)
+	if strings.Contains(exp.String(), "m=") {
+		t.Errorf("expiry %v carries a monotonic reading", exp)
+	}
+	if !expired(exp.Add(time.Second), exp) || expired(exp.Add(-time.Second), exp) {
+		t.Error("expired() must compare wall-clock times")
+	}
+}
+
+func TestAgent_DoesNotRemoveReplacementSocket(t *testing.T) {
+	path := sockPath(t)
+	done := startServe(t, path, []byte("old"), []byte("s"), 300*time.Millisecond, time.Now)
+
+	// A newer agent takes over the path while the old one is still running.
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	newer := startServe(t, path, []byte("new"), []byte("s"), time.Hour, time.Now)
+
+	waitDone(t, done) // the old agent expires and cleans up
+	key, _, err := Get(path)
+	if err != nil || string(key) != "new" {
+		t.Fatalf("newer agent unreachable after old one exited: key=%q err=%v", key, err)
+	}
+	Lock(path)
+	waitDone(t, newer)
 }

@@ -12,14 +12,26 @@ import (
 // now, checked against the wall clock as well as a timer) or a lock request
 // arrives. On return the key is zeroed and the socket is closed and removed.
 func Serve(ln net.Listener, key, salt []byte, ttl time.Duration, now func() time.Time) error {
-	expiresAt := now().Add(ttl)
+	expiresAt := expiryFrom(now(), ttl)
 	path := ln.Addr().String()
+
+	// Remove the socket on exit only if it is still ours: a newer agent may
+	// have replaced it, and deleting its socket would make it unreachable
+	// (even for "passgen lock") while it still holds a key.
+	if ul, ok := ln.(*net.UnixListener); ok {
+		ul.SetUnlinkOnClose(false)
+	}
+	own, ownErr := os.Stat(path)
 	defer func() {
 		for i := range key {
 			key[i] = 0
 		}
 		ln.Close()
-		os.Remove(path)
+		if ownErr == nil {
+			if cur, err := os.Stat(path); err == nil && os.SameFile(own, cur) {
+				os.Remove(path)
+			}
+		}
 	}()
 
 	// The timer covers the normal case; the ticker catches a suspended machine
@@ -37,7 +49,7 @@ func Serve(ln net.Listener, key, salt []byte, ttl time.Duration, now func() time
 				ln.Close()
 				return
 			case <-ticker.C:
-				if !now().Before(expiresAt) {
+				if expired(now(), expiresAt) {
 					ln.Close()
 					return
 				}
@@ -69,7 +81,7 @@ func handle(conn net.Conn, key, salt []byte, expiresAt time.Time, now func() tim
 	}
 	enc := json.NewEncoder(conn)
 
-	if !now().Before(expiresAt) {
+	if expired(now(), expiresAt) {
 		enc.Encode(response{Err: "expired"})
 		return true
 	}
@@ -84,4 +96,16 @@ func handle(conn net.Conn, key, salt []byte, expiresAt time.Time, now func() tim
 		enc.Encode(response{Err: "unknown op"})
 		return false
 	}
+}
+
+// expiryFrom returns now+ttl as a wall-clock time. The monotonic reading is
+// dropped because Go's monotonic clock stops while Linux and macOS sleep,
+// which would let a suspended machine extend the session.
+func expiryFrom(now time.Time, ttl time.Duration) time.Time {
+	return now.Round(0).Add(ttl)
+}
+
+// expired compares wall-clock times only.
+func expired(now, expiresAt time.Time) bool {
+	return !now.Round(0).Before(expiresAt.Round(0))
 }

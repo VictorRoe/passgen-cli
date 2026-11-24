@@ -71,3 +71,13 @@ func TestRunAgent_BadPayload(t *testing.T) {
 		t.Errorf("no socket must be created on bad payload, stat err = %v", err)
 	}
 }
+
+func TestAgentCommand_RunsFromHome(t *testing.T) {
+	cmd := agentCommand("passgen.exe", "/home/u")
+	if cmd.Dir != "/home/u" {
+		t.Errorf("agent Dir = %q, want the home directory so it never holds the caller's folder", cmd.Dir)
+	}
+	if len(cmd.Args) != 2 || cmd.Args[1] != "agent" {
+		t.Errorf("agent Args = %v, want [exe agent]", cmd.Args)
+	}
+}
